@@ -341,10 +341,10 @@ const DashBoard = () => {
                           </label>
                         </div>
                       </div>
-                    </div>
-                    {errors.gender && (
+                      {errors.gender && (
                       <div className="text-danger">{errors.gender}</div>
                     )}
+                    </div>                    
                   </form>
                 </div>
 
