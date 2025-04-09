@@ -1,6 +1,8 @@
 import React from "react";
 import "./DashBoard.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
 
 const DashBoard = () => {
   const [empDetails, setEmpDetails] = useState([]);
@@ -8,7 +10,7 @@ const DashBoard = () => {
   const [mode, setMode] = useState("Add");
   const [empData, setEmpData] = useState({
     name: "",
-    email: "",
+    emailId: "",
     phone: "",
     address: "",
     gender: "",
@@ -18,11 +20,29 @@ const DashBoard = () => {
   const [deletModal, setDeleteModal] = useState(false);
   const [saveModal, setSaveModal] = useState(false);
   const [deleteEmpId, setDeleteEmpId] = useState(null);
+  const navigate = useNavigate();
+  const [successMessage, setSuccessMessage] = useState("");
+  const getEmpList =()=>{
+    fetch("http://localhost:5000/empList")
+    .then((response) => response.json())
+    .then((data) => {
+      setEmpDetails(data);
+      console.log(data);
+    })
+    .catch((error) => console.error("Error fetching data:", error));}
+
+  const handleLogout = () => {
+    navigate("/");
+  };
+  useEffect(() => {
+   getEmpList();
+  }, []); 
 
   const handleAddModal = () => {
     setAddModal(true);
     setErrors({});
-    setEmpData({name: "", email: "", phone: "", address: "", gender: ""});
+    setEmpData({ name: "", emailId: "", phone: "", address: "", gender: "" });
+    
   };
 
   const handleCloseModal = () => {
@@ -47,15 +67,31 @@ const DashBoard = () => {
     setDeleteModal(true);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (deleteEmpId) {
-      setEmpDetails((prevDetails) =>
-        prevDetails.filter((emp) => emp.id !== deleteEmpId)
-      );
+      try {
+        console.log("Attempting to delete employee with ID:", deleteEmpId);
+        const response = await fetch(
+          `http://localhost:5000/delete/${deleteEmpId}`,
+          { method: "DELETE" }
+        );
+        const data = await response.json();
+        console.log("Delete Response:", data);
+        // console.log("Delete Response:", response.data);
+        setEmpDetails((prev) => prev.filter((emp) => emp.id !== deleteEmpId));
+      } catch (error) {
+        console.error(
+          "Error deleting employee:",
+          error.response?.data || error.message
+        );
+      }
     }
-    setDeleteModal(false); // Close the delete modal
+    setDeleteModal(false);
     setDeleteEmpId(null);
+    getEmpList();
   };
+
+  // console.log(empDetails);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -69,14 +105,26 @@ const DashBoard = () => {
       [name]: value,
     });
     if (name === "name" && value.trim()) delete newErrors.name;
-      if (name === "emailId" && value.trim() && /^[\w.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) delete newErrors.emailId;
-      else if (name === "emailId" && !value.trim()) newErrors.emailId = "Email is required!"
-      else if (name === "emailId" && value.trim()&& !/^[\w.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) newErrors.emailId = "Invalid email!";
-
+    if (
+      name === "emailId" &&
+      value.trim() &&
+      /^[\w.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)
+    )
+      delete newErrors.emailId;
+    else if (name === "emailId" && !value.trim())
+      newErrors.emailId = "Email is required!";
+    else if (
+      name === "emailId" &&
+      value.trim() &&
+      !/^[\w.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)
+    )
+      newErrors.emailId = "Invalid email!";
 
     if (name === "phone" && /^\d{10}$/.test(value)) delete newErrors.phone;
-    else if (name === "phone" && !value.trim()) newErrors.phone = "Phone number is required!";
-    else if (name === "phone" && value.trim() && !/^\d{10}$/.test(value)) newErrors.phone = "Phone number must be 10 digits";
+    else if (name === "phone" && !value.trim())
+      newErrors.phone = "Phone number is required!";
+    else if (name === "phone" && value.trim() && !/^\d{10}$/.test(value))
+      newErrors.phone = "Phone number must be 10 digits";
 
     if (name === "address" && value.trim()) delete newErrors.address;
     if (name === "gender" && value) delete newErrors.gender;
@@ -84,8 +132,10 @@ const DashBoard = () => {
     setErrors(newErrors);
   };
 
-  const handleSave = () => {
-    const newErrors = {};
+  const handleSave = async (event) => {
+    event.preventDefault();
+    let newErrors = {};
+
     if (!empData.name?.trim()) newErrors.name = "Name is required!";
     if (!empData.emailId?.trim()) newErrors.emailId = "Email is required!";
     else if (!/^[\w.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(empData.emailId))
@@ -98,37 +148,90 @@ const DashBoard = () => {
     if (!empData.address?.trim()) newErrors.address = "Address is required!";
     if (!empData.gender) newErrors.gender = "Gender is required!";
 
-    if (Object.keys(newErrors).length === 0) {
-      if (mode === "Add") {
-        const maxId = empDetails.reduce(
-          (max, emp) => Math.max(max, parseInt(emp.id)),
-          0
-        ); 
-        const newId = String(maxId + 1);
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
 
-        setEmpDetails((prevDetails) => [
-          ...prevDetails,
-          { id: newId, ...empData },
-        ]);
-      } else if (mode === "Edit") {
+    if (mode === "Edit") {
+      console.log(empData);
+      try {
+        const response = await fetch(
+          `http://localhost:5000/editEmp/${empData._id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({emailId:empData.emailId, name:empData.name, phone:empData.phone, address:empData.address,gender:empData.gender}),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        setSuccessMessage("Employee updated successfully!");
         setEmpDetails((prevDetails) =>
           prevDetails.map((emp) => (emp.id === empData.id ? empData : emp))
         );
+        setAddModal(false);
+        setSaveModal(true);
+        getEmpList();
+      } catch (error) {
+        console.error("Error updating employee:", error.message);
       }
-      setAddModal(false);
-      setSaveModal(true);
     } else {
-      setErrors(newErrors);
+      try {
+        console.log("Sending Data:", empData);
+        const response = await fetch("http://localhost:5000/addEmp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(empData),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("Response:", data);
+
+        setSuccessMessage("Employee added successfully!");
+        setEmpDetails((prevDetails) => [...prevDetails, data.employee]);
+        setEmpData({
+          name: "",
+          emailId: "",
+          address: "",
+          gender: "",
+        });
+        setErrors({});
+        setAddModal(false);
+        setSaveModal(true);
+        getEmpList();
+      } catch (error) {
+        console.error("Error adding employee:", error.message || error);
+      }
     }
   };
 
   return (
     <div className="container ">
-      <h1 className="title">Employee details</h1>
+      <div className="d-flex justify-content-center position-relative">
+        <h1 className="title text-center flex-grow-1">Employee details</h1>
+        <div className="d-flex justify-content-around align-items-center gap-2">
+          <span
+            className="d-flex align-items-center gap-2 cursor-pointer"
+            onClick={handleLogout}
+          >
+            <p className="mb-0 cursor">Logout</p>
+            <i className="bi bi-box-arrow-right"></i>
+          </span>
+        </div>
+      </div>
       <div className="d-flex justify-content-end mb-3">
         <button
           type="button"
-          className=" btn-primary  addBtn"
+          className="btn btn-primary  addBtn"
           onClick={handleAddModal}
         >
           Add
@@ -136,8 +239,7 @@ const DashBoard = () => {
       </div>
 
       <div>
-        <div class="row  text-center  py-2 bg-primary text-white fw-bold    ">
-          <div class="col-1  ">Emp id </div>
+        <div class="row  text-center  py-2 bg-primary text-white fw-bold    ">          
           <div class="col ">Name </div>
           <div class="col ">Email id </div>
           <div class="col ">Gender </div>
@@ -146,27 +248,27 @@ const DashBoard = () => {
           <div class="col-1 "> </div>
         </div>
 
-        {empDetails.map((empDetails) => (
+        {empDetails.map((emp) => (
           <div
-            key={empDetails.id}
+            key={emp.id}
             className="row text-center py-2 border-start border-end border-top border-bottom"
           >
-            <div className="col-1">{empDetails.id} </div>
-            <div className="col">{empDetails.name} </div>
-            <div className="col">{empDetails.emailId} </div>
-            <div className="col">{empDetails.gender} </div>
-            <div className="col">{empDetails.phone} </div>
-            <div className="col">{empDetails.address}</div>
+            
+            <div className="col">{emp.name} </div>
+            <div className="col">{emp.emailId} </div>
+            <div className="col">{emp.gender} </div>
+            <div className="col">{emp.phone} </div>
+            <div className="col">{emp.address}</div>
             <div className="col-1 d-flex justify-content-around align-items-center">
               <i
                 class="bi bi-pencil-square icon"
-                onClick={() => handleEditModal(empDetails)}
+                onClick={() => handleEditModal(emp)}
               >
                 {" "}
               </i>
               <i
                 class="bi bi-trash icon"
-                onClick={() => handleDeleteModal(empDetails.id)}
+                onClick={() => handleDeleteModal(emp._id)}
               ></i>
             </div>
           </div>
@@ -342,9 +444,9 @@ const DashBoard = () => {
                         </div>
                       </div>
                       {errors.gender && (
-                      <div className="text-danger">{errors.gender}</div>
-                    )}
-                    </div>                    
+                        <div className="text-danger">{errors.gender}</div>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -359,7 +461,7 @@ const DashBoard = () => {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-secondary "
                     onClick={handleCloseModal}
                   >
                     {" "}

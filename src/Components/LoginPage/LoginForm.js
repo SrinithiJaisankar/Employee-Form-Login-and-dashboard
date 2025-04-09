@@ -2,76 +2,110 @@ import React from "react";
 import "./LoginForm.css";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
+import axios from "axios";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMessages, setErrorMessages] = useState([]);
- const navigate =useNavigate();
+  const [errorMessages, setErrorMessages] = useState({});
+  const navigate = useNavigate();
 
-  const handleError = (event) => {
+  const handleError = async (event) => {
     event.preventDefault();
-    const error = validate();
-    setErrorMessages(error);
+    let errors = {};
 
-    if (!error.email && !error.password){
-      navigate("/Dashboard");
+    if (!email.trim()) {
+      errors.email = "Email is required!";
     }
-  };
+    if (!password.trim()) {
+      errors.password = "Password is required!";
 
-
-
-  const validate = () => {
-    const error = {};
-
-    if (!email) {
-      error.email = "Email id is required!";
-    } else if (email.toLowerCase()!== "sri@gmail.com") {
-      error.email = "Invalid email id!";
-    } else {
-      error.email = "";
     }
 
-    if (!password) {
-      error.password = "Password is required!";
-    } else if (password !== "AAaa11@@")
-     {
-      error.password ="Incorrect password!";
-    } else {
-      error.password = "";
+    if (Object.keys(errors).length > 0) {
+      setErrorMessages(errors);
+      return;
     }
 
-    return error;
-  };
+     
+       await fetch("http://localhost:5000/login", {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        method: "post",
+        body:JSON.stringify ({ email, password }),
+        
+      })
+  
+        .then(async (response) => {
+          const data = await response.json();
+          console.log("Response data:", data);
+
+        setErrorMessages({email:data.email, password:data.password});
+        
+        
+      if (response.status === 200) {
+        navigate("/Dashboard");
+      } 
+      })
+      .catch(error => {
+        // Handle any errors
+        console.error("Login Error:", error);
+      // console.log(error.response.data.error);
+
+      if (error.response && error.response.data) {
+        setErrorMessages(error.response.data);
+      } else  {
+        setErrorMessages({ login: "Server error. Try again later!" });
+      }
+
+  });   
+     
+};
 
   return (
     <div className="body">
-    <div className="loginContainer">
-      <h1 className="heading">Employee Form</h1>
+      <div className="loginContainer">
+        <h1 className="heading">Employee Form</h1>
 
-      <form onSubmit={handleError} autoComplete="off">
-        <div className="inputBox">
-          <div className="inputIcon">
-            <input  className="inputField"  type="email" placeholder="Email id" onChange={(e) => setEmail(e.target.value)} autoComplete="off" />           
+        <form onSubmit={handleError} autoComplete="off">
+          <div className="inputBox">
+            <div className="inputIcon">
+              <input
+                className="inputField"
+                type="email"
+                placeholder="Email id"
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            {errorMessages.email && (
+              <div className="error">{errorMessages.email}</div>
+              
+            )}
           </div>
-          {errorMessages.email && (<div className="error">{errorMessages.email}</div> )}
-        </div>
 
-        <div className="inputBox">
-          <div className="inputIcon">
-            <input  className="inputField" type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)}autoComplete="off"/>            
-        </div>
-          {errorMessages.password && (
-            <div className="error">{errorMessages.password}</div>
-          )}
-        </div>
+          <div className="inputBox">
+            <div className="inputIcon">
+              <input
+                className="inputField"
+                type="password"
+                placeholder="Password"
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            {errorMessages.password && (
+              <div className="error">{errorMessages.password}</div>
+            )}
+          </div>
 
-        <button type="submit" className="loginBtn">
-          Login
-        </button>
-      </form>
-    </div>
+          <button type="submit" className="loginBtn">
+            Login
+          </button>
+        </form>
+      </div>
     </div>
   );
 };
